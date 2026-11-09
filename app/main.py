@@ -1,10 +1,13 @@
 import json
-
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, HTTPException
 
-from app.models import Order
+from app.ai.schemas import InvestigationResult
+from app.models import InvestigationRequest, Order
+from app.services.investigation_service import investigate_order
 
 
 DATA_FILE = (
@@ -64,3 +67,31 @@ def get_order(order_id: str) -> Order:
         )
 
     return order
+
+
+@app.post(
+    "/orders/{order_id}/investigate",
+    response_model=InvestigationResult
+)
+def investigate(
+    order_id: str,
+    request: InvestigationRequest
+) -> InvestigationResult:
+
+    order = find_order(order_id)
+
+    if order is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Order not found"
+        )
+
+    current_time = datetime.now(
+        ZoneInfo("America/Fortaleza")
+    )
+
+    return investigate_order(
+        order=order,
+        question=request.question,
+        current_time=current_time
+    )

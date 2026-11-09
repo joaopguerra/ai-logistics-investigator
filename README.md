@@ -1,62 +1,153 @@
 # AI Logistics Investigator Lite
 
-Aplicação experimental de investigação logística baseada em Inteligência Artificial.
+Aplicação experimental de investigação logística que utiliza Inteligência Artificial para analisar pedidos e eventos de rastreamento, identificar situações de risco e produzir diagnósticos estruturados com base nas evidências disponíveis.
 
-O projeto tem como objetivo analisar dados de pedidos e eventos de rastreamento para identificar possíveis problemas, levantar causas prováveis e recomendar ações com base nas evidências disponíveis.
+O projeto também é um laboratório prático de desenvolvimento com Python e AI Engineering, aplicado a um cenário próximo de operações logísticas reais.
 
 ## Objetivo
 
-Desenvolver uma aplicação capaz de receber uma pergunta sobre um pedido, recuperar seus dados logísticos e utilizar um LLM para produzir um diagnóstico estruturado.
+Receber uma pergunta sobre um pedido, recuperar seus dados logísticos e utilizar um modelo de linguagem para analisar as evidências e retornar:
 
-O projeto também é um laboratório prático de aprendizado em Python e AI Engineering.
+- Diagnóstico da situação do pedido.
+- Possível causa, quando houver evidências.
+- Fatos que sustentam a análise.
+- Recomendação de ação.
+- Status logístico calculado por regras de negócio.
 
 ## Tecnologias
 
-- Python
+- Python 3.12+
 - FastAPI
 - Pydantic
 - LangChain
-- LangGraph (planejado)
 - Google Gemini
 - Pytest
 - JSON
 
-## Arquitetura prevista
+**LangGraph está previsto para uma próxima etapa**, quando será utilizado para orquestrar o fluxo de investigação.
 
-1. Receber o identificador do pedido e a pergunta.
-2. Consultar os dados do pedido.
-3. Recuperar os eventos de rastreamento.
-4. Preparar o contexto da investigação.
-5. Analisar as evidências com um LLM.
-6. Validar o diagnóstico.
-7. Retornar uma resposta estruturada.
+## Arquitetura atual
 
-## Status do desenvolvimento
+1. A API recebe o identificador do pedido e a pergunta.
+2. A aplicação recupera os dados do pedido no arquivo JSON.
+3. As regras de negócio calculam o status logístico.
+4. Os dados do pedido e os eventos de rastreamento são enviados ao Gemini por meio do LangChain.
+5. O modelo analisa as evidências e gera um diagnóstico estruturado.
+6. O Pydantic valida a estrutura da resposta.
+7. A API retorna o resultado em JSON.
 
-**Em desenvolvimento.**
+O status logístico é calculado pela aplicação, não pelo LLM. O modelo fica responsável pela análise das evidências e pela elaboração do diagnóstico.
 
-Implementado até o momento:
+## Funcionalidades implementadas
 
-- Estrutura inicial da aplicação Python.
-- API REST com FastAPI para consulta de pedidos.
-- Modelagem e validação de dados com Pydantic.
+- API REST para consulta de pedidos.
+- Modelagem e validação dos dados com Pydantic.
+- Classificação de status: no prazo, em risco, atrasado, entregue, entregue com atraso e indeterminado.
 - Integração com Google Gemini por meio do LangChain.
-- Prompt parametrizado para investigação logística.
-- Resposta estruturada utilizando Pydantic.
+- Prompt orientado à análise baseada exclusivamente nas evidências fornecidas.
+- Resposta estruturada com diagnóstico, causa provável, evidências, recomendação e status.
+- Tratamento de pedido inexistente com HTTP 404.
+- Testes automatizados das regras de negócio.
 
-Próximas etapas:
+## Como executar o projeto
 
-- Refinar as regras de diagnóstico.
-- Implementar validações de negócio.
-- Integrar LangGraph para orquestração.
-- Ampliar os testes automatizados.
+### Pré-requisitos
 
-## Dados e segurança
+- Python 3.12 ou superior.
+- Uma chave de API do Google Gemini, obtida no [Google AI Studio](https://aistudio.google.com/app/apikey).
 
-O MVP utiliza dados logísticos simulados em arquivos JSON.
+### 1. Clonar o repositório
 
-A chave de API deve ser configurada localmente por meio de variável de ambiente. Arquivos `.env` não devem ser versionados.
+```bash
+git clone https://github.com/joaopguerra/ai-logistics-investigator.git
+cd ai-logistics-investigator
+```
 
-## Objetivo de longo prazo
+### 2. Criar e ativar o ambiente virtual
 
-Construir um investigador logístico capaz de analisar ocorrências, apresentar evidências e sugerir ações, mantendo a análise fundamentada nos dados disponíveis.
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 3. Instalar as dependências
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+### 4. Configurar as variáveis de ambiente
+
+Crie um arquivo `.env` na raiz do projeto:
+
+```env
+GOOGLE_API_KEY=sua_chave_do_google_gemini
+GOOGLE_GENAI_API_VERSION=v1beta
+```
+
+Não compartilhe nem versione sua chave de API. O arquivo `.env` já está incluído no `.gitignore`.
+
+### 5. Executar a API
+
+```bash
+fastapi dev app/main.py
+```
+
+A documentação interativa estará disponível em:
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+## Endpoints
+
+| Método | Endpoint | Descrição |
+|---|---|---|
+| GET | `/health` | Verifica a saúde da aplicação |
+| GET | `/orders` | Lista os pedidos disponíveis |
+| GET | `/orders/{order_id}` | Consulta um pedido |
+| POST | `/orders/{order_id}/investigate` | Investiga um pedido com auxílio do Gemini |
+
+### Exemplo de investigação
+
+Requisição:
+
+```http
+POST /orders/98766/investigate
+Content-Type: application/json
+```
+
+Corpo:
+
+```json
+{
+  "question": "O pedido foi entregue dentro do prazo?"
+}
+```
+
+A resposta contém o diagnóstico, a causa provável, as evidências, a recomendação e o status calculado.
+
+## Executar os testes
+
+```bash
+python -m pytest -v
+```
+
+Os testes atuais validam as regras de classificação logística utilizando dados controlados, sem depender de chamadas ao Gemini.
+
+## Dados e limitações do MVP
+
+O projeto utiliza pedidos e eventos de rastreamento simulados em `data/orders.json`.
+
+Ainda não há integração com transportadoras ou sistemas logísticos reais. A integração com LangGraph, persistência de estado e ampliação dos cenários de teste fazem parte das próximas etapas.
+
+## Próximas etapas
+
+- Integrar LangGraph para orquestrar o fluxo de investigação.
+- Ampliar os testes automatizados da API e dos cenários de investigação.
+- Melhorar logs e tratamento de erros.
+- Documentar e evoluir a arquitetura conforme o MVP amadurecer.
+
+---
+
+Projeto desenvolvido para estudo prático de Python, LLMs e AI Engineering em um contexto de logística.

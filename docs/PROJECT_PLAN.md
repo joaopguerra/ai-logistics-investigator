@@ -11,7 +11,46 @@ O projeto tem dois objetivos:
 - Desenvolver uma solução funcional para investigação logística.
 - Aprender, na prática, Python, LLMs, LangChain e LangGraph, explorando conceitos de AI Engineering.
 
-## 2. Resultado esperado
+## 2. Estado atual do projeto
+
+O projeto já possui um fluxo funcional de investigação, utilizando FastAPI, Python, LangChain e Gemini.
+
+### Funcionalidades implementadas
+
+- API REST desenvolvida com FastAPI.
+- Consulta de pedidos armazenados em arquivos JSON.
+- Modelagem e validação dos dados com Pydantic.
+- Classificação determinística do status logístico.
+- Integração com Gemini por meio do LangChain.
+- Análise contextualizada dos dados e eventos de rastreamento.
+- Resposta estruturada com diagnóstico, causa provável, evidências e recomendação.
+- Validação da resposta com modelos Pydantic.
+- Testes automatizados das regras de classificação.
+
+### Arquitetura implementada
+
+O fluxo atual funciona da seguinte maneira:
+
+1. FastAPI recebe o identificador do pedido e a pergunta.
+2. A aplicação recupera os dados do pedido.
+3. Python calcula o status logístico com regras determinísticas.
+4. O serviço prepara os dados e eventos para investigação.
+5. LangChain envia o contexto ao Gemini.
+6. O Gemini produz a análise estruturada.
+7. Pydantic valida a resposta.
+8. A API retorna o diagnóstico ao usuário.
+
+**Importante:** o status logístico é calculado pelo Python, não pelo LLM. O Gemini é responsável pela análise contextual das evidências e pelas recomendações.
+
+### Próximas evoluções
+
+- Implementar a orquestração da investigação com LangGraph.
+- Explorar Tools e Tool Calling.
+- Desenvolver cenários adicionais de investigação.
+- Melhorar o tratamento de erros e a observabilidade.
+- Avaliar persistência de estado e checkpointing.
+
+## 3. Resultado esperado
 
 Ao final, a aplicação deverá permitir:
 
@@ -32,17 +71,19 @@ Ao final, a aplicação deverá permitir:
 
 **Saída esperada:**
 
-- **Problema identificado:** possível atraso na entrega.
-- **Causa provável:** ausência de atualização no rastreamento após a última movimentação.
-- **Evidências:** último evento registrado e data prevista de entrega.
+- **Diagnóstico:** situação atual do pedido e possível atraso.
+- **Causa provável:** hipótese sustentada pelos eventos disponíveis.
+- **Evidências:** histórico de movimentações e previsão de entrega.
 - **Recomendação:** verificar a situação do pedido com a transportadora.
-- **Status da análise:** possível ocorrência identificada.
+- **Status:** classificação logística calculada pela aplicação.
 
 A análise deverá se limitar às informações disponíveis. O modelo não deve inventar eventos ou apresentar hipóteses como fatos confirmados.
 
+A aplicação também deverá reconhecer situações em que o pedido esteja seguindo normalmente, sem presumir que sempre existe um problema.
+
 ---
 
-## 3. Arquitetura proposta
+## 4. Arquitetura proposta
 
 ### Tecnologias
 
@@ -58,39 +99,45 @@ A análise deverá se limitar às informações disponíveis. O modelo não deve
 | JSON | Armazenamento inicial dos dados simulados |
 | Git/GitHub | Versionamento e portfólio |
 
-### Visão geral
+### Visão geral da arquitetura planejada
 
 ```mermaid
 flowchart TD
     A[Usuário] --> B[FastAPI]
     B --> C[Receber pedido e pergunta]
     C --> D[Consultar dados do pedido]
-    D --> E[Recuperar eventos de rastreamento]
-    E --> F[Preparar contexto da investigação]
-    F --> G[LangGraph]
-    G --> H[Análise com LLM - Gemini]
-    H --> I[Validar diagnóstico]
-    I --> J[Resposta estruturada]
-    J --> B
+    D --> E[Recuperar eventos]
+    E --> F[Calcular status logístico]
+    F --> G[Preparar contexto]
+    G --> H[LangGraph]
+    H --> I[Análise com Gemini]
+    I --> J[Validar diagnóstico]
+    J --> K[Resposta estruturada]
+    K --> B
     B --> A
 ```
 
+O diagrama representa a arquitetura desejada após a implementação do LangGraph. O fluxo atual já executa as etapas principais, mas ainda não utiliza essa camada de orquestração.
+
 ---
 
-## 4. Fluxo funcional da aplicação
+## 5. Fluxo funcional da aplicação
 
 ### Etapa 1 — Receber a solicitação
 
 A API recebe uma requisição contendo:
 
-- Identificador do pedido.
-- Pergunta ou descrição da ocorrência.
+- Identificador do pedido na URL.
+- Pergunta ou descrição da ocorrência no corpo da requisição.
 
 Exemplo:
 
+```http
+POST /orders/98765/investigate
+```
+
 ```json
 {
-  "order_id": "98765",
   "question": "Por que este pedido ainda não foi entregue?"
 }
 ```
@@ -100,30 +147,59 @@ Exemplo:
 A aplicação consulta a fonte de dados e recupera:
 
 - Identificador.
-- Status atual.
+- Status original.
 - Data prevista de entrega.
-- Demais informações relevantes.
+- Eventos de rastreamento.
 
-No MVP, os dados serão armazenados em arquivos JSON.
+No MVP, os dados são armazenados em arquivos JSON.
 
 ### Etapa 3 — Recuperar eventos de rastreamento
 
 A aplicação recupera o histórico de eventos relacionados ao pedido.
 
-Exemplo:
+Exemplos:
 
 - Pedido recebido.
 - Pedido enviado para transporte.
 - Pedido em transferência.
 - Última movimentação registrada.
+- Pedido entregue.
 
-### Etapa 4 — Preparar o contexto
+### Etapa 4 — Calcular o status logístico
+
+O Python aplica regras determinísticas para classificar a situação do pedido.
+
+Classificações atuais:
+
+| Status | Significado |
+|---|---|
+| `NO_PRAZO` | Pedido dentro do prazo, com mais de 24 horas restantes ou exatamente 24 horas |
+| `EM_RISCO` | Menos de 24 horas restantes |
+| `ATRASADO` | Prazo de entrega atingido ou ultrapassado, sem confirmação de entrega |
+| `ENTREGUE` | Entrega realizada dentro do prazo |
+| `ENTREGUE_COM_ATRASO` | Entrega realizada após o prazo |
+| `INDETERMINADO` | Informações insuficientes para classificação |
+
+Essa classificação é responsabilidade da aplicação, não do modelo de linguagem.
+
+### Etapa 5 — Preparar o contexto
 
 A aplicação organiza os dados em uma estrutura que será utilizada durante a investigação.
 
+O contexto inclui:
+
+- Identificador do pedido.
+- Pergunta do usuário.
+- Status original.
+- Status calculado.
+- Previsão de entrega.
+- Eventos de rastreamento.
+
 O objetivo é fornecer ao modelo informações suficientes para analisar a situação sem depender apenas do conhecimento geral do LLM.
 
-### Etapa 5 — Iniciar a investigação com LangGraph
+### Etapa 6 — Iniciar a investigação com LangGraph
+
+**Planejado — ainda não implementado.**
 
 O LangGraph será responsável por controlar o fluxo de execução.
 
@@ -131,16 +207,18 @@ Inicialmente, teremos os seguintes nós:
 
 1. **Load Order:** carregar os dados do pedido.
 2. **Load Events:** recuperar os eventos de rastreamento.
-3. **Analyze Evidence:** analisar as informações com o LLM.
-4. **Validate Result:** validar e estruturar o diagnóstico.
+3. **Calculate Status:** executar as regras de classificação.
+4. **Analyze Evidence:** analisar as informações com o LLM.
+5. **Validate Result:** validar e estruturar o diagnóstico.
 
-### Etapa 6 — Analisar com Gemini
+### Etapa 7 — Analisar com Gemini
 
 O LangChain será utilizado para integrar a aplicação ao Gemini.
 
 O modelo receberá:
 
 - Dados do pedido.
+- Status calculado.
 - Eventos de rastreamento.
 - Pergunta do usuário.
 - Instruções de análise.
@@ -150,115 +228,84 @@ O prompt deverá orientar o modelo a:
 - Identificar inconsistências.
 - Avaliar possíveis causas.
 - Utilizar somente as evidências fornecidas.
+- Diferenciar fatos de hipóteses.
 - Informar quando não houver dados suficientes.
 - Apresentar recomendações coerentes.
+- Reconhecer quando o fluxo ocorreu normalmente.
 
-### Etapa 7 — Validar o diagnóstico
+### Etapa 8 — Validar o diagnóstico
 
 A resposta será estruturada e validada com Pydantic.
 
-Formato esperado:
+Modelo de resposta:
 
 ```json
 {
-  "problem": "Possible delivery delay",
-  "probable_cause": "No recent tracking updates",
-  "evidence": [
-    "Last tracking event occurred before the expected delivery date"
+  "diagnostico": "O pedido apresenta atraso na entrega.",
+  "causa_provavel": "Não há atualização recente no rastreamento.",
+  "evidencias": [
+    "Último evento registrado em 04/11/2026.",
+    "Previsão de entrega em 04/11/2026."
   ],
-  "recommendation": "Contact the carrier for an updated status",
-  "status": "INVESTIGATION_REQUIRED"
+  "recomendacao": "Verificar a situação do pedido com a transportadora.",
+  "status": "ATRASADO"
 }
 ```
 
-### Etapa 8 — Retornar o resultado
+O campo `status` será preenchido pela aplicação com base nas regras de negócio.
+
+### Etapa 9 — Retornar o resultado
 
 A API retorna o diagnóstico ao usuário em formato JSON.
 
 ---
 
-## 5. Organização prevista do projeto
+## 6. Organização do projeto
+
+Estrutura atual:
 
 ```text
 ai-logistics-investigator/
 │
 ├── app/
+│   ├── __init__.py
 │   ├── main.py
 │   ├── models.py
-│   │
-│   ├── api/
-│   │   └── routes.py
-│   │
-│   ├── services/
-│   │   ├── order_service.py
-│   │   └── investigation_service.py
 │   │
 │   ├── ai/
 │   │   ├── llm.py
 │   │   ├── prompts.py
-│   │   └── graph.py
+│   │   └── schemas.py
 │   │
-│   └── tools/
-│       └── order_tools.py
+│   └── services/
+│       ├── investigation_service.py
+│       └── order_status.py
 │
 ├── data/
 │   └── orders.json
 │
+├── docs/
+│   └── PROJECT_PLAN.md
+│
 ├── tests/
-│   ├── test_orders.py
-│   └── test_investigation.py
+│   └── test_order_status.py
 │
 ├── .env
 ├── .gitignore
+├── README.md
 ├── requirements.txt
-└── README.md
+└── requirements-dev.txt
 ```
 
-A estrutura será criada gradualmente, conforme cada responsabilidade for implementada. Não precisamos antecipar arquivos que ainda não serão utilizados.
+A estrutura será ampliada gradualmente, conforme novas responsabilidades forem implementadas.
 
----
-
-## 6. Planejamento de desenvolvimento
-
-**Duração:** 3 semanas  
-**Carga horária:** 1 hora por dia, 5 dias por semana  
-**Total:** 15 sessões
-
-### Semana 1 — Fundamentos e API
-
-| Sessão | Conteúdo | Resultado |
-|---|---|---|
-| 1 | Ambiente Python e estrutura do projeto | Ambiente configurado |
-| 2 | Classes, type hints e Pydantic | Modelagem dos dados |
-| 3 | FastAPI e endpoints REST | API de pedidos funcional |
-| 4 | LLMs, prompts e Gemini | Primeira integração com LLM |
-| 5 | Integração e testes iniciais | Primeira versão funcional |
-
-### Semana 2 — LangChain e LangGraph
-
-| Sessão | Conteúdo | Resultado |
-|---|---|---|
-| 6 | LangChain e integração com modelos | Camada de LLM organizada |
-| 7 | Tools e Tool Calling | Modelo capaz de utilizar ferramentas |
-| 8 | LangGraph: State e Nodes | Estrutura do agente |
-| 9 | Edges e Conditional Edges | Fluxo de execução controlado |
-| 10 | Integração completa | Investigação funcionando |
-
-### Semana 3 — Qualidade e evolução
-
-| Sessão | Conteúdo | Resultado |
-|---|---|---|
-| 11 | Cenários de investigação | Diferentes situações logísticas |
-| 12 | Pytest | Testes automatizados |
-| 13 | Checkpointing e persistência de estado | Entendimento e implementação de estado persistente |
-| 14 | Logs e tratamento de erros | Maior confiabilidade |
-| 15 | Documentação e revisão | Projeto pronto para apresentação |
+Não precisamos antecipar arquivos que ainda não serão utilizados.
 
 ---
 
 ## 7. O que ficará fora do MVP
 
-Para manter o projeto dentro do prazo e concentrar o aprendizado nos conceitos principais, não implementaremos inicialmente:
+Para manter o projeto dentro do escopo e concentrar o aprendizado nos conceitos principais, não implementaremos inicialmente:
 
 - RabbitMQ.
 - Banco de dados PostgreSQL.
@@ -267,6 +314,7 @@ Para manter o projeto dentro do prazo e concentrar o aprendizado nos conceitos p
 - Kubernetes.
 - Frontend elaborado.
 - Integração com transportadoras reais.
+- Múltiplos provedores de LLM.
 
 Esses recursos poderão ser avaliados em uma evolução futura.
 
@@ -276,15 +324,20 @@ Esses recursos poderão ser avaliados em uma evolução futura.
 
 Consideraremos o MVP concluído quando:
 
-- [ ] A API receber um pedido e uma pergunta.
-- [ ] Os dados do pedido forem recuperados corretamente.
-- [ ] Os eventos de rastreamento forem disponibilizados para análise.
-- [ ] O Gemini realizar uma análise contextualizada.
-- [ ] O LangGraph controlar o fluxo de investigação.
-- [ ] O diagnóstico apresentar evidências e recomendações.
+- [x] A API receber um pedido e uma pergunta.
+- [x] Os dados do pedido forem recuperados corretamente.
+- [x] Os eventos de rastreamento forem disponibilizados para análise.
+- [x] O Gemini realizar uma análise contextualizada.
+- [x] O diagnóstico apresentar evidências e recomendações.
 - [ ] Respostas sem evidências suficientes forem tratadas adequadamente.
-- [ ] Os principais cenários estiverem cobertos por testes.
-- [ ] O projeto possuir documentação para execução e apresentação.
+- [x] As regras de classificação do status estiverem implementadas.
+- [x] Os principais cenários das regras estiverem cobertos por testes.
+- [ ] O LangGraph controlar o fluxo de investigação.
+- [ ] Os cenários de investigação estiverem ampliados.
+- [ ] O tratamento de erros e a observabilidade estiverem aprimorados.
+- [ ] A documentação estiver revisada para apresentação.
+
+---
 
 ## 9. Diretrizes de aprendizado
 
@@ -295,10 +348,14 @@ Durante o desenvolvimento:
 3. Cada componente terá uma responsabilidade clara.
 4. Faremos exercícios e checkpoints de compreensão.
 5. Revisaremos decisões arquiteturais e alternativas.
-6. Não avançaremos para o próximo assunto sem validar o entendimento do atual.
+6. Não avançaremos para o próximo assunto sem validar o entendimento atual.
 
 O objetivo não é apenas fazer a aplicação funcionar, mas compreender as tecnologias e as decisões envolvidas na construção de aplicações de IA.
 
 ---
 
-**Resultado final:** uma aplicação de investigação logística baseada em LLM e LangGraph, desenvolvida em Python, documentada e disponível como projeto de portfólio de AI Engineering.
+## 10. Resultado final
+
+Uma aplicação de investigação logística baseada em LLM e LangGraph, desenvolvida em Python, capaz de analisar dados de pedidos e eventos de rastreamento, apresentar diagnósticos fundamentados em evidências e recomendar ações.
+
+O projeto será documentado, testado e disponibilizado no GitHub como demonstração prática de conhecimentos em desenvolvimento backend e AI Engineering.

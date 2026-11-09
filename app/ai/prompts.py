@@ -15,6 +15,8 @@ investigation_prompt = ChatPromptTemplate.from_messages([
         - Diferencie fatos de hipóteses.
         - Se não houver informações suficientes, informe isso claramente.
         - Responda em português, de forma objetiva.
+        - O diagnóstico deve descrever a situação real do pedido.
+        - Não presuma que existe um problema: reconheça explicitamente quando o fluxo ocorreu normalmente.
         """
     ),
     (

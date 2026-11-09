@@ -4,18 +4,9 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-class InvestigationResult(BaseModel):
-    status: Literal[
-        "NORMAL",
-        "EM_RISCO",
-        "ATRASADO",
-        "INDETERMINADO"
-    ] = Field(
-        description="Situação identificada na investigação logística."
-    )
-
-    problema: str = Field(
-        description="Descrição objetiva do problema identificado."
+class InvestigationAnalysis(BaseModel):
+    diagnostico: str = Field(
+        description="Diagnóstico objetivo da situação logística do pedido, incluindo casos em que o fluxo ocorreu normalmente."
     )
 
     causa_provavel: str | None = Field(
@@ -28,4 +19,17 @@ class InvestigationResult(BaseModel):
 
     recomendacao: str = Field(
         description="Ação recomendada com base nas evidências."
+    )
+
+
+class InvestigationResult(InvestigationAnalysis):
+    status: Literal[
+        "NO_PRAZO",
+        "EM_RISCO",
+        "ATRASADO",
+        "ENTREGUE",
+        "ENTREGUE_COM_ATRASO",
+        "INDETERMINADO"
+    ] = Field(
+        description="Situação logística calculada pelas regras de negócio."
     )

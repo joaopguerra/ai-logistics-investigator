@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import datetime
 
 from pydantic import BaseModel
 
@@ -11,5 +11,9 @@ class OrderEvent(BaseModel):
 class Order(BaseModel):
     id: str
     status: str
-    expected_delivery: date
+    expected_delivery: datetime
     events: list[OrderEvent]
+
+
+class InvestigationRequest(BaseModel):
+    question: str
