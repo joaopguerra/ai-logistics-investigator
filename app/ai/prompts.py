@@ -32,6 +32,9 @@ investigation_prompt = ChatPromptTemplate.from_messages([
         Eventos de rastreamento:
         {tracking_events}
 
+        Foco da análise:
+        {analysis_focus}
+
         Analise as informações e responda à pergunta.
         """
     )

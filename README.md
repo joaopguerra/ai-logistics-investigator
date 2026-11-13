@@ -20,23 +20,36 @@ Receber uma pergunta sobre um pedido, recuperar seus dados logísticos e utiliza
 - FastAPI
 - Pydantic
 - LangChain
+- LangGraph
 - Google Gemini
 - Pytest
 - JSON
 
-**LangGraph está previsto para uma próxima etapa**, quando será utilizado para orquestrar o fluxo de investigação.
+## Arquitetura
 
-## Arquitetura atual
+A aplicação separa as responsabilidades de regras de negócio, orquestração e análise por Inteligência Artificial.
+
+### Fluxo de investigação
 
 1. A API recebe o identificador do pedido e a pergunta.
 2. A aplicação recupera os dados do pedido no arquivo JSON.
-3. As regras de negócio calculam o status logístico.
-4. Os dados do pedido e os eventos de rastreamento são enviados ao Gemini por meio do LangChain.
-5. O modelo analisa as evidências e gera um diagnóstico estruturado.
-6. O Pydantic valida a estrutura da resposta.
-7. A API retorna o resultado em JSON.
+3. O LangGraph inicia o workflow de investigação.
+4. O nó de classificação calcula o status logístico utilizando regras de negócio em Python.
+5. O grafo realiza um roteamento condicional conforme o status:
+   - Pedido atrasado: direciona para investigação do atraso.
+   - Pedido no prazo ou em risco: direciona para análise do fluxo normal.
+   - Outros status: direciona para análise da situação e das informações disponíveis.
+6. O nó de análise utiliza LangChain e Google Gemini para interpretar os dados e eventos de rastreamento.
+7. O resultado é estruturado e validado com Pydantic.
+8. A API retorna o diagnóstico em JSON.
 
-O status logístico é calculado pela aplicação, não pelo LLM. O modelo fica responsável pela análise das evidências e pela elaboração do diagnóstico.
+### Decisão arquitetural
+
+O modelo de IA não determina sozinho o status logístico do pedido.
+
+As regras de negócio são implementadas em Python, garantindo maior previsibilidade na classificação. O LLM é responsável por interpretar as evidências, identificar possíveis causas e produzir recomendações.
+
+O LangGraph coordena as etapas e permite que diferentes caminhos de investigação sejam executados conforme a situação do pedido.
 
 ## Funcionalidades implementadas
 
@@ -44,10 +57,12 @@ O status logístico é calculado pela aplicação, não pelo LLM. O modelo fica 
 - Modelagem e validação dos dados com Pydantic.
 - Classificação de status: no prazo, em risco, atrasado, entregue, entregue com atraso e indeterminado.
 - Integração com Google Gemini por meio do LangChain.
-- Prompt orientado à análise baseada exclusivamente nas evidências fornecidas.
+- Orquestração do fluxo de investigação com LangGraph.
+- Roteamento condicional conforme o status logístico.
+- Prompt orientado à análise baseada nas evidências fornecidas.
 - Resposta estruturada com diagnóstico, causa provável, evidências, recomendação e status.
 - Tratamento de pedido inexistente com HTTP 404.
-- Testes automatizados das regras de negócio.
+- Testes automatizados das regras de negócio, roteamento e execução do workflow.
 
 ## Como executar o projeto
 
@@ -133,21 +148,30 @@ A resposta contém o diagnóstico, a causa provável, as evidências, a recomend
 python -m pytest -v
 ```
 
-Os testes atuais validam as regras de classificação logística utilizando dados controlados, sem depender de chamadas ao Gemini.
+A suíte atual possui 15 testes automatizados, cobrindo:
+
+- Regras de classificação logística.
+- Roteamento condicional do LangGraph.
+- Execução do workflow de investigação.
+
+Os testes automatizados utilizam dados controlados e simulação da análise, sem depender de chamadas reais ao Gemini.
 
 ## Dados e limitações do MVP
 
 O projeto utiliza pedidos e eventos de rastreamento simulados em `data/orders.json`.
 
-Ainda não há integração com transportadoras ou sistemas logísticos reais. A integração com LangGraph, persistência de estado e ampliação dos cenários de teste fazem parte das próximas etapas.
+Ainda não há integração com transportadoras ou sistemas logísticos reais. A aplicação também não possui persistência de histórico de investigações ou suporte a múltiplos provedores de LLM.
 
 ## Próximas etapas
 
-- Integrar LangGraph para orquestrar o fluxo de investigação.
+- Melhorar a resiliência e o tratamento de falhas nas chamadas aos modelos.
+- Preparar a arquitetura para suportar diferentes provedores de LLM.
 - Ampliar os testes automatizados da API e dos cenários de investigação.
-- Melhorar logs e tratamento de erros.
-- Documentar e evoluir a arquitetura conforme o MVP amadurecer.
+- Adicionar RAG para consulta de documentos e procedimentos logísticos.
+- Integrar banco de dados vetorial.
+- Implementar observabilidade com LangFuse.
+- Evoluir documentação, infraestrutura e qualidade da aplicação.
 
 ---
 
-Projeto desenvolvido para estudo prático de Python, LLMs e AI Engineering em um contexto de logística.
+Projeto desenvolvido para estudo prático de Python, LLMs, LangChain, LangGraph e AI Engineering em um contexto de logística.
